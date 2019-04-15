@@ -420,12 +420,40 @@ module LibertyBuildpack::Container
       disable_application_monitoring(server_xml_doc)
       # Disable configuration (server.xml) monitoring
       disable_config_monitoring(server_xml_doc)
+      
+      if check_for_springboot?
+        add_springboot(server_xml_doc)
+      end
 
       # Check if appstate ICAP feature can be used
       check_appstate_feature(server_xml_doc) if appstate_enabled?
 
       # update config for services
       @services_manager.update_configuration(server_xml_doc, create, current_server_dir)
+    end 
+    
+    SPRING_JAR_PATTERN = 'spring-core*.jar'.freeze
+
+    def check_for_springboot?
+      pattern = "#{app_dir}/**/#{SPRING_JAR_PATTERN}"
+      (shared_libs = FrameworkUtils.find_shared_libs(app_dir, pattern)) unless Dir.glob("#{app_dir}/**/wlp").each { |file| File.directory? file }.empty?
+      if !shared_libs.nil? && !shared_libs.empty?
+        s_apps = FrameworkUtils.find(app_dir)
+      else
+        s_apps = FrameworkUtils.find(app_dir, pattern)
+      end
+      s_apps != []
+    end
+    
+    def add_springboot(server_xml_doc)
+      feature_managers = REXML::XPath.match(server_xml_doc, '/server/featureManager')
+      if feature_managers.empty?
+        feature_manager = REXML::Element.new('featureManager', server_xml_doc.root)
+      else
+        feature_manager = feature_managers[0]
+      end
+      connector_feature = REXML::Element.new('feature', feature_manager)
+      connector_feature.text = 'springBoot-1.5'
     end
 
     def get_context_root
